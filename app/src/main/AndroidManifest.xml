@@ -14,7 +14,9 @@
         android:theme="@style/AppTheme">
         <meta-data
             android:name="com.google.firebase.ml.vision.DEPENDENCIES"
-            android:value="ocr" />
+            android:value="ocr,face" />
+
+
         <!-- To use multiple models: android:value="ocr,model2,model3" -->
         <activity android:name=".ActivityProcessImage">
             <intent-filter>

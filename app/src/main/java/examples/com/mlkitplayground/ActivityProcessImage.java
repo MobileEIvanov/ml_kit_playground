@@ -13,7 +13,22 @@ import android.os.Bundle;
 import android.Manifest;
 import android.view.View;
 
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.ml.vision.FirebaseVision;
+import com.google.firebase.ml.vision.common.FirebaseVisionImage;
+import com.google.firebase.ml.vision.face.FirebaseVisionFace;
+import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
 import examples.com.mlkitplayground.databinding.ActivityProcessImageBinding;
+
+import static com.google.android.gms.vision.face.FaceDetector.ACCURATE_MODE;
+import static com.google.android.gms.vision.face.FaceDetector.ALL_CLASSIFICATIONS;
+import static com.google.android.gms.vision.face.FaceDetector.ALL_LANDMARKS;
 
 //https://code.tutsplus.com/tutorials/getting-started-with-firebase-ml-kit-for-android--cms-31305
 public class ActivityProcessImage extends AppCompatActivity {
@@ -30,12 +45,15 @@ public class ActivityProcessImage extends AppCompatActivity {
         checkPermissionsAndStart();
     };
 
+//    https://medium.com/google-developer-experts/exploring-firebase-mlkit-on-android-face-detection-part-two-de7e307c52e0
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mBinding = DataBindingUtil.setContentView(this, R.layout.activity_process_image);
-        mBinding.ivHeaderImage.setOnClickListener(mListenerPickImage);
+        mBinding.fabPickImage.setOnClickListener(mListenerPickImage);
     }
+
 
     @Override
     protected void onStart() {
@@ -72,7 +90,7 @@ public class ActivityProcessImage extends AppCompatActivity {
     }
 
     private void checkPermissionsAndStart() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.CAMERA},
                     REQUEST_PERMISSIONS);
         } else {
@@ -98,8 +116,53 @@ public class ActivityProcessImage extends AppCompatActivity {
             }
             mSelectedImage = data.getData();
             UtilsImageLoader.loadImage(this, mBinding.ivHeaderImage, mSelectedImage);
-
+            processImageML(mSelectedImage);
         }
+    }
+
+    FirebaseVisionFaceDetectorOptions optionsMLProcessing;
+
+    /**
+     * Configuration options
+     */
+    private void configureML() {
+        optionsMLProcessing = new FirebaseVisionFaceDetectorOptions.Builder()
+                .setModeType(ACCURATE_MODE)
+                .setLandmarkType(ALL_LANDMARKS)
+                .setClassificationType(ALL_CLASSIFICATIONS)
+                .setMinFaceSize(0.1f)
+                .build();
+
+    }
+
+//https://firebase.google.com/docs/ml-kit/android/detect-faces
+    private void processImageML(Uri uri) {
+        configureML();
+        FirebaseVisionImage image = null;
+        try {
+            image = FirebaseVisionImage.fromFilePath(this, uri);
+
+            FirebaseVision
+                    .getInstance()
+                    .getVisionFaceDetector(optionsMLProcessing)
+                    .detectInImage(image)
+                    .addOnSuccessListener(new OnSuccessListener<List<FirebaseVisionFace>>() {
+                        @Override
+                        public void onSuccess(List<FirebaseVisionFace> firebaseVisionFaces) {
+
+                        }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
     }
 
 
