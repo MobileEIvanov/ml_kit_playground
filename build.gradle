@@ -12,16 +12,30 @@ buildscript {
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
+        classpath 'com.google.gms:google-services:4.0.1'
     }
 }
 
 allprojects {
     repositories {
         google()
+        maven { url 'https://github.com/FireZenk/maven-repo/raw/master/'}
         jcenter()
     }
 }
+ext{
 
+    supportLibrary = '27.1.1'
+    designLibrary = '27.1.1'
+    constraintLayout = '1.1.2'
+    retrofit  = '2.4.0'
+    rxAndroid = ''
+    stetho = '1.5.0'
+    okHttp = '3.10.0'
+    glide = '4.7.1'
+
+
+}
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
