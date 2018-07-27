@@ -11,14 +11,22 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.Manifest;
+import android.util.Log;
 import android.view.View;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.ml.vision.FirebaseVision;
+import com.google.firebase.ml.vision.barcode.FirebaseVisionBarcode;
+import com.google.firebase.ml.vision.cloud.FirebaseVisionCloudDetectorOptions;
+import com.google.firebase.ml.vision.cloud.text.FirebaseVisionCloudText;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
 import com.google.firebase.ml.vision.face.FirebaseVisionFace;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
+import com.google.firebase.ml.vision.label.FirebaseVisionLabel;
+import com.google.firebase.ml.vision.label.FirebaseVisionLabelDetectorOptions;
+import com.google.firebase.ml.vision.text.FirebaseVisionText;
+import com.google.firebase.ml.vision.text.FirebaseVisionTextDetector;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,7 +45,15 @@ public class ActivityProcessImage extends AppCompatActivity {
     private static final int REQUEST_CAMERA = 1;
     private static final int REQUEST_GALERY = 2;
     private static final int REQUEST_PERMISSIONS = 3;
+    private static final int REQUEST_OCR = 4;
+    private static final int REQUEST_IMAGE_LABELING = 5;
+    private static final String TAG = "Process";
 
+
+    private static final int PROCESS_FACES = 11;
+    private static final int PROCESS_OCR = 12;
+    private static final int PROCESS_IMAGE_LABELING = 13;
+    private static final int PROCESS_BARCODE = 14;
     ActivityProcessImageBinding mBinding;
     private Uri mSelectedImage;
 
@@ -102,31 +118,30 @@ public class ActivityProcessImage extends AppCompatActivity {
     public void pickImage() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
-        startActivityForResult(intent, REQUEST_GALERY);
+        startActivityForResult(intent, PROCESS_FACES);
     }
 
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_GALERY && resultCode == Activity.RESULT_OK) {
+        if (requestCode == PROCESS_FACES && resultCode == Activity.RESULT_OK) {
             if (data == null) {
                 //Display an error
                 return;
             }
             mSelectedImage = data.getData();
             UtilsImageLoader.loadImage(this, mBinding.ivHeaderImage, mSelectedImage);
-            processImageML(mSelectedImage);
+            processImageML(mSelectedImage, PROCESS_BARCODE);
         }
     }
 
-    FirebaseVisionFaceDetectorOptions optionsMLProcessing;
 
     /**
-     * Configuration options
+     * Configuration options Face detection
      */
-    private void configureML() {
-        optionsMLProcessing = new FirebaseVisionFaceDetectorOptions.Builder()
+    private FirebaseVisionFaceDetectorOptions configureFaceML() {
+        return new FirebaseVisionFaceDetectorOptions.Builder()
                 .setModeType(ACCURATE_MODE)
                 .setLandmarkType(ALL_LANDMARKS)
                 .setClassificationType(ALL_CLASSIFICATIONS)
@@ -135,35 +150,186 @@ public class ActivityProcessImage extends AppCompatActivity {
 
     }
 
-//https://firebase.google.com/docs/ml-kit/android/detect-faces
-    private void processImageML(Uri uri) {
-        configureML();
+    /**
+     * Configuration options Image Labeling
+     */
+    private FirebaseVisionLabelDetectorOptions configureLabelDetectionML() {
+        return new FirebaseVisionLabelDetectorOptions.Builder()
+                .setConfidenceThreshold(0.8f)
+                .build();
+    }
+
+    /**
+     * Configure cloud Text Recognition(OCR)
+     *
+     * @return - configurations
+     */
+    private FirebaseVisionCloudDetectorOptions configureCloudOCR() {
+        return new FirebaseVisionCloudDetectorOptions.Builder()
+                .setModelType(FirebaseVisionCloudDetectorOptions.LATEST_MODEL)
+                .setMaxResults(15)
+                .build();
+    }
+
+
+    private void processImageML(Uri selectedImage, int processingType) {
+
+        switch (processingType) {
+            case PROCESS_FACES:
+                processFaceImageML(selectedImage);
+                break;
+
+            case PROCESS_OCR:
+                processTextOCR(selectedImage);
+                break;
+
+            case PROCESS_IMAGE_LABELING:
+                processImageLabeling(selectedImage);
+                break;
+
+            case PROCESS_BARCODE:
+                processBarcodeImageML(selectedImage);
+
+        }
+    }
+
+    private void processImageLabeling(Uri uri) {
+
+        FirebaseVisionImage image = null;
+        try {
+            image = FirebaseVisionImage.fromFilePath(this, uri);
+            FirebaseVision
+                    .getInstance()
+                    .getVisionLabelDetector(configureLabelDetectionML())
+                    .detectInImage(image)
+                    .addOnSuccessListener(firebaseVisionLabels -> {
+                        for (FirebaseVisionLabel label : firebaseVisionLabels) {
+                            Log.d(TAG, "onSuccess: "
+                                    + label.getConfidence() + " "
+                                    + label.getEntityId() + " "
+                                    + label.getLabel());
+
+                        }
+                    }).addOnFailureListener(e -> e.printStackTrace());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void processTextOCR(Uri uri) {
+
+        FirebaseVisionImage image = null;
+        try {
+            image = FirebaseVisionImage.fromFilePath(this, uri);
+            FirebaseVision
+                    .getInstance()
+                    .getVisionCloudTextDetector(configureCloudOCR())
+                    .detectInImage(image)
+                    .addOnSuccessListener(firebaseVisionCloudText ->
+                            Log.d(TAG, "onSuccess: " + firebaseVisionCloudText.getText()))
+                    .addOnFailureListener(e -> e.printStackTrace());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    //https://firebase.google.com/docs/ml-kit/android/detect-faces
+    private void processFaceImageML(Uri uri) {
+
         FirebaseVisionImage image = null;
         try {
             image = FirebaseVisionImage.fromFilePath(this, uri);
 
             FirebaseVision
                     .getInstance()
-                    .getVisionFaceDetector(optionsMLProcessing)
+                    .getVisionFaceDetector(configureFaceML())
                     .detectInImage(image)
-                    .addOnSuccessListener(new OnSuccessListener<List<FirebaseVisionFace>>() {
-                        @Override
-                        public void onSuccess(List<FirebaseVisionFace> firebaseVisionFaces) {
-
+                    .addOnSuccessListener(firebaseVisionFaces -> {
+                        if (firebaseVisionFaces.size() > 0) {
+                            for (FirebaseVisionFace face :
+                                    firebaseVisionFaces) {
+                            }
                         }
                     })
-                    .addOnFailureListener(new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            e.printStackTrace();
-                        }
-                    });
+                    .addOnFailureListener(e -> e.printStackTrace());
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-
     }
 
+
+    //https://firebase.google.com/docs/ml-kit/android/detect-faces
+    private void processBarcodeImageML(Uri uri) {
+
+        FirebaseVisionImage image = null;
+        try {
+            image = FirebaseVisionImage.fromFilePath(this, uri);
+
+            FirebaseVision
+                    .getInstance()
+                    .getVisionBarcodeDetector()
+                    .detectInImage(image)
+                    .addOnSuccessListener(new OnSuccessListener<List<FirebaseVisionBarcode>>() {
+                        @Override
+                        public void onSuccess(List<FirebaseVisionBarcode> barcodes) {
+                            if (barcodes.size() > 0) {
+                                for (FirebaseVisionBarcode barcode : barcodes) {
+                                    Log.d(TAG, "onSuccess: " + barcode.getRawValue());
+                                    switch (barcode.getValueType()) {
+                                        case FirebaseVisionBarcode.TYPE_PHONE:
+                                            Log.d(TAG, "phone: " + barcode.getPhone());
+                                            break;
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .addOnFailureListener(e -> e.printStackTrace());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    //https://firebase.google.com/docs/ml-kit/android/detect-faces
+    private void processLandmarksImageML(Uri uri) {
+//
+//        FirebaseVisionImage image = null;
+//        try {
+//            image = FirebaseVisionImage.fromFilePath(this, uri);
+//
+//            FirebaseVision
+//                    .getInstance()
+//                    .get()
+//                    .detectInImage(image)
+//                    .addOnSuccessListener(new OnSuccessListener<List<FirebaseVisionBarcode>>() {
+//                        @Override
+//                        public void onSuccess(List<FirebaseVisionBarcode> barcodes) {
+//                            if (barcodes.size() > 0) {
+//                                for (FirebaseVisionBarcode barcode : barcodes) {
+//                                    Log.d(TAG, "onSuccess: " + barcode.getRawValue());
+//                                    switch (barcode.getValueType()){
+//                                        case FirebaseVisionBarcode.TYPE_PHONE:
+//                                            Log.d(TAG, "phone: " + barcode.getPhone());
+//                                            break;
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    })
+//                    .addOnFailureListener(e -> e.printStackTrace());
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+    }
+
+
+    // TODO: 7/27/18 Process Clould: OCR
+    // TODO: 7/27/18 Process Clould: Labeling
+    // TODO: 7/27/18 Process Clould: Face Detection
+    // TODO: 7/27/18 Process Clould: Landmarks
+    // TODO: 7/27/18 Process Clould: Barcode
 
 }
