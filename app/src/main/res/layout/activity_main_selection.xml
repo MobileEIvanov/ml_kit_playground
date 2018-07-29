@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingEnd="56dp"
+        android:paddingStart="56dp"
+        tools:context=".MainActivity">
+
+        <Button
+            android:id="@+id/btn_face_detection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_top"
+            android:text="Face Processing"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/btn_text_detection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_top"
+            android:text="Text OCR Processing"
+            app:layout_constraintStart_toStartOf="@+id/btn_face_detection"
+            app:layout_constraintTop_toBottomOf="@+id/btn_face_detection" />
+
+        <Button
+            android:id="@+id/btn_barcode_detection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_top"
+            android:text="Barcode Processing"
+            app:layout_constraintStart_toStartOf="@+id/btn_text_detection"
+            app:layout_constraintTop_toBottomOf="@+id/btn_text_detection" />
+
+        <Button
+            android:id="@+id/btn_image_labeling"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_top"
+            android:text="Image Label Processing"
+            app:layout_constraintStart_toStartOf="@+id/btn_barcode_detection"
+            app:layout_constraintTop_toBottomOf="@+id/btn_barcode_detection" />
+
+    </android.support.constraint.ConstraintLayout>
+</layout>

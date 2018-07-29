@@ -1,11 +1,13 @@
 package examples.com.mlkitplayground;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.databinding.DataBindingUtil;
 import android.net.Uri;
 import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -45,15 +47,14 @@ public class ActivityProcessImage extends AppCompatActivity {
     private static final int REQUEST_CAMERA = 1;
     private static final int REQUEST_GALERY = 2;
     private static final int REQUEST_PERMISSIONS = 3;
-    private static final int REQUEST_OCR = 4;
-    private static final int REQUEST_IMAGE_LABELING = 5;
+
     private static final String TAG = "Process";
 
 
-    private static final int PROCESS_FACES = 11;
-    private static final int PROCESS_OCR = 12;
-    private static final int PROCESS_IMAGE_LABELING = 13;
-    private static final int PROCESS_BARCODE = 14;
+    public static final int PROCESS_FACES = 11;
+    public static final int PROCESS_OCR = 12;
+    public static final int PROCESS_IMAGE_LABELING = 13;
+    public static final int PROCESS_BARCODE = 14;
     ActivityProcessImageBinding mBinding;
     private Uri mSelectedImage;
 
@@ -61,13 +62,22 @@ public class ActivityProcessImage extends AppCompatActivity {
         checkPermissionsAndStart();
     };
 
+    private int mActiveProcess;
+
+    public static void newInstance(Context context, int activeProcess) {
+        Intent intent = new Intent(context, ActivityProcessImage.class);
+        intent.putExtra("process", activeProcess);
+        context.startActivity(intent);
+    }
 //    https://medium.com/google-developer-experts/exploring-firebase-mlkit-on-android-face-detection-part-two-de7e307c52e0
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mBinding = DataBindingUtil.setContentView(this, R.layout.activity_process_image);
+        mActiveProcess = getIntent().getIntExtra("process", 0);
         mBinding.fabPickImage.setOnClickListener(mListenerPickImage);
+        mBinding.rvData.setVisibility(View.GONE);
     }
 
 
@@ -118,21 +128,25 @@ public class ActivityProcessImage extends AppCompatActivity {
     public void pickImage() {
         Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
-        startActivityForResult(intent, PROCESS_FACES);
+        startActivityForResult(intent, REQUEST_GALERY);
     }
 
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PROCESS_FACES && resultCode == Activity.RESULT_OK) {
+        if (requestCode == REQUEST_GALERY && resultCode == Activity.RESULT_OK) {
             if (data == null) {
                 //Display an error
                 return;
             }
             mSelectedImage = data.getData();
             UtilsImageLoader.loadImage(this, mBinding.ivHeaderImage, mSelectedImage);
-            processImageML(mSelectedImage, PROCESS_BARCODE);
+            if (mActiveProcess != 0) {
+                processImageML(mSelectedImage, mActiveProcess);
+            } else {
+                Snackbar.make(mBinding.getRoot(), "No selected process", Snackbar.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -203,21 +217,24 @@ public class ActivityProcessImage extends AppCompatActivity {
                     .getVisionLabelDetector(configureLabelDetectionML())
                     .detectInImage(image)
                     .addOnSuccessListener(firebaseVisionLabels -> {
+                        StringBuilder stringBuilder = new StringBuilder();
                         for (FirebaseVisionLabel label : firebaseVisionLabels) {
                             Log.d(TAG, "onSuccess: "
                                     + label.getConfidence() + " "
                                     + label.getEntityId() + " "
                                     + label.getLabel());
 
+                            stringBuilder.append(label.getLabel() + "confidence: " + label.getConfidence() + " Id:" + label.getEntityId());
+                            stringBuilder.append("\n");
                         }
+                        mBinding.tvResult.setText(stringBuilder);
                     }).addOnFailureListener(e -> e.printStackTrace());
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-
-    private void processTextOCR(Uri uri) {
+    private void processCloudTextOCR(Uri uri) {
 
         FirebaseVisionImage image = null;
         try {
@@ -227,7 +244,37 @@ public class ActivityProcessImage extends AppCompatActivity {
                     .getVisionCloudTextDetector(configureCloudOCR())
                     .detectInImage(image)
                     .addOnSuccessListener(firebaseVisionCloudText ->
-                            Log.d(TAG, "onSuccess: " + firebaseVisionCloudText.getText()))
+                    {
+                        Log.d(TAG, "onSuccess: " + firebaseVisionCloudText.getText());
+                        mBinding.tvResult.setText(firebaseVisionCloudText.getText());
+                    })
+                    .addOnFailureListener(e -> e.printStackTrace());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void processTextOCR(Uri uri) {
+
+        FirebaseVisionImage image = null;
+        try {
+            image = FirebaseVisionImage.fromFilePath(this, uri);
+            FirebaseVision
+                    .getInstance()
+                    .getVisionTextDetector()
+                    .detectInImage(image)
+                    .addOnSuccessListener(new OnSuccessListener<FirebaseVisionText>() {
+                        @Override
+                        public void onSuccess(FirebaseVisionText firebaseVisionText) {
+//                            Log.d(TAG, "onSuccess: " + firebaseVisionText);
+                            StringBuilder stringBuilder = new StringBuilder();
+                            for (FirebaseVisionText.Block block : firebaseVisionText.getBlocks()) {
+                                stringBuilder.append(block.getText());
+                                stringBuilder.append("\n");
+                            }
+                            mBinding.tvResult.setText(stringBuilder.toString());
+                        }
+                    })
                     .addOnFailureListener(e -> e.printStackTrace());
         } catch (IOException e) {
             e.printStackTrace();
@@ -247,11 +294,18 @@ public class ActivityProcessImage extends AppCompatActivity {
                     .getVisionFaceDetector(configureFaceML())
                     .detectInImage(image)
                     .addOnSuccessListener(firebaseVisionFaces -> {
+                        StringBuilder stringBuilder = new StringBuilder();
+
                         if (firebaseVisionFaces.size() > 0) {
                             for (FirebaseVisionFace face :
                                     firebaseVisionFaces) {
+
+                                stringBuilder.append("Left eye opened: " + face.getLeftEyeOpenProbability()
+                                        + " Right eye opended:" + face.getRightEyeOpenProbability() + " Smiling:" + face.getSmilingProbability());
                             }
+                            mBinding.tvResult.setText(stringBuilder);
                         }
+
                     })
                     .addOnFailureListener(e -> e.printStackTrace());
         } catch (IOException e) {
@@ -275,14 +329,13 @@ public class ActivityProcessImage extends AppCompatActivity {
                         @Override
                         public void onSuccess(List<FirebaseVisionBarcode> barcodes) {
                             if (barcodes.size() > 0) {
+                                StringBuilder stringBuilder = new StringBuilder();
                                 for (FirebaseVisionBarcode barcode : barcodes) {
                                     Log.d(TAG, "onSuccess: " + barcode.getRawValue());
-                                    switch (barcode.getValueType()) {
-                                        case FirebaseVisionBarcode.TYPE_PHONE:
-                                            Log.d(TAG, "phone: " + barcode.getPhone());
-                                            break;
-                                    }
+                                    stringBuilder.append(barcode.getRawValue());
+                                    stringBuilder.append("\n");
                                 }
+                                mBinding.tvResult.setText(stringBuilder);
                             }
                         }
                     })
@@ -326,10 +379,10 @@ public class ActivityProcessImage extends AppCompatActivity {
     }
 
 
-    // TODO: 7/27/18 Process Clould: OCR
-    // TODO: 7/27/18 Process Clould: Labeling
-    // TODO: 7/27/18 Process Clould: Face Detection
-    // TODO: 7/27/18 Process Clould: Landmarks
-    // TODO: 7/27/18 Process Clould: Barcode
+    // TODO: 7/27/18 Process Cloud: OCR
+    // TODO: 7/27/18 Process Cloud: Labeling
+    // TODO: 7/27/18 Process Cloud: Face Detection
+    // TODO: 7/27/18 Process Cloud: Landmarks
+    // TODO: 7/27/18 Process Cloud: Barcode
 
 }

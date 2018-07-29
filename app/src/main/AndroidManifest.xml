@@ -16,15 +16,19 @@
             android:name="com.google.firebase.ml.vision.DEPENDENCIES"
             android:value="ocr,face,label,barcode" />
 
-
-        <!-- To use multiple models: android:value="ocr,model2,model3" -->
-        <activity android:name=".ActivityProcessImage">
+        <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".ActivityProcessImage"
+            android:parentActivityName=".MainActivity">
+
+        </activity>
+
     </application>
 
 </manifest>
