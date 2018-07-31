@@ -46,5 +46,14 @@
             app:layout_constraintStart_toStartOf="@+id/btn_barcode_detection"
             app:layout_constraintTop_toBottomOf="@+id/btn_barcode_detection" />
 
+
+        <Button
+            android:id="@+id/btn_cloud_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/margin_top"
+            android:text="Cloud Text Processing"
+            app:layout_constraintStart_toStartOf="@+id/btn_image_labeling"
+            app:layout_constraintTop_toBottomOf="@+id/btn_image_labeling" />
     </android.support.constraint.ConstraintLayout>
 </layout>
